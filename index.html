@@ -1,0 +1,847 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ASM Fusion - Live Assembly to C Translator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            backdrop-filter: blur(10px);
+            overflow: hidden;
+            min-height: 90vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%);
+            color: white;
+            padding: 25px 30px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shimmer 3s infinite;
+        }
+
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+            position: relative;
+            z-index: 1;
+        }
+
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+            position: relative;
+            z-index: 1;
+        }
+
+        .main-content {
+            display: flex;
+            height: calc(90vh - 120px);
+        }
+
+        .editor-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            border-right: 3px solid #e74c3c;
+            background: #2c3e50;
+            position: relative;
+        }
+
+        .output-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: #34495e;
+            position: relative;
+        }
+
+        .panel-header {
+            padding: 20px;
+            font-weight: bold;
+            font-size: 1.2em;
+            text-align: center;
+            color: white;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+        }
+
+        .editor-panel .panel-header {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            box-shadow: 0 2px 10px rgba(231, 76, 60, 0.3);
+        }
+
+        .output-panel .panel-header {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            box-shadow: 0 2px 10px rgba(39, 174, 96, 0.3);
+        }
+
+        .editor-container {
+            flex: 1;
+            position: relative;
+            padding: 20px;
+        }
+
+        .line-numbers {
+            position: absolute;
+            left: 0;
+            top: 20px;
+            bottom: 20px;
+            width: 60px;
+            background: #1a252f;
+            color: #7f8c8d;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 22px;
+            padding: 15px 10px;
+            border-right: 2px solid #34495e;
+            user-select: none;
+            overflow: hidden;
+        }
+
+        .code-input {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #2c3e50;
+            color: #ecf0f1;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 22px;
+            padding: 15px 15px 15px 75px;
+            resize: none;
+            outline: none;
+            border-radius: 10px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+            transition: all 0.3s ease;
+        }
+
+        .code-input:focus {
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.3), 0 0 20px rgba(231, 76, 60, 0.3);
+        }
+
+        .output-container {
+            flex: 1;
+            padding: 20px;
+            position: relative;
+        }
+
+        .code-output {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background: #34495e;
+            color: #ecf0f1;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 22px;
+            padding: 15px;
+            resize: none;
+            outline: none;
+            border-radius: 10px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.2);
+            overflow-y: auto;
+        }
+
+        .toolbar {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            backdrop-filter: blur(5px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #3498db, #2980b9);
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.4);
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.6);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn.clear {
+            background: linear-gradient(135deg, #e74c3c, #c0392b);
+            box-shadow: 0 4px 15px rgba(231, 76, 60, 0.4);
+        }
+
+        .btn.clear:hover {
+            box-shadow: 0 6px 20px rgba(231, 76, 60, 0.6);
+        }
+
+        .btn.save {
+            background: linear-gradient(135deg, #27ae60, #229954);
+            box-shadow: 0 4px 15px rgba(39, 174, 96, 0.4);
+        }
+
+        .btn.save:hover {
+            box-shadow: 0 6px 20px rgba(39, 174, 96, 0.6);
+        }
+
+        .status-bar {
+            background: rgba(44, 62, 80, 0.9);
+            color: white;
+            padding: 10px 20px;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .syntax-highlight {
+            color: #e74c3c;
+        }
+
+        .error-highlight {
+            background-color: rgba(231, 76, 60, 0.2);
+            border-left: 3px solid #e74c3c;
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                flex-direction: column;
+                height: auto;
+            }
+            
+            .editor-panel, .output-panel {
+                min-height: 300px;
+            }
+            
+            .editor-panel {
+                border-right: none;
+                border-bottom: 3px solid #e74c3c;
+            }
+            
+            .toolbar {
+                flex-wrap: wrap;
+            }
+        }
+
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+
+        .pulse {
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.7; }
+            100% { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 ASM Fusion</h1>
+            <p>Live Assembly to C Translator - Real-time 8085 Assembly Conversion</p>
+        </div>
+        
+        <div class="main-content">
+            <div class="editor-panel">
+                <div class="panel-header">
+                    📝 Assembly Input (8085)
+                </div>
+                <div class="editor-container">
+                    <div class="line-numbers" id="lineNumbers">1</div>
+                    <textarea 
+                        class="code-input" 
+                        id="assemblyInput" 
+                        placeholder="Enter your 8085 assembly code here...&#10;Example:&#10;START:&#10;    MVI A, 10H&#10;    MVI B, 20H&#10;    ADD B&#10;    STA 3000H&#10;    HLT"
+                        spellcheck="false"
+                    ></textarea>
+                </div>
+            </div>
+            
+            <div class="output-panel">
+                <div class="panel-header">
+                    ⚡ C Code Output
+                </div>
+                <div class="output-container">
+                    <textarea 
+                        class="code-output" 
+                        id="codeOutput" 
+                        readonly
+                        placeholder="Your converted C code will appear here automatically..."
+                    ></textarea>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toolbar">
+            <button class="btn" onclick="loadExample()">📄 Load Example</button>
+            <button class="btn clear" onclick="clearAll()">🗑️ Clear All</button>
+            <button class="btn save" onclick="downloadCode('asm')">💾 Save ASM</button>
+            <button class="btn save" onclick="downloadCode('c')">💾 Save C</button>
+        </div>
+        
+        <div class="status-bar">
+            <span id="statusText">Ready - Start typing assembly code above</span>
+            <span id="statsText">Lines: 0 | Instructions: 0</span>
+        </div>
+    </div>
+
+    <script>
+        // 8085 Assembly to C Converter - JavaScript Implementation
+        class ASMToC {
+            constructor() {
+                this.registers8085 = ['A', 'B', 'C', 'D', 'E', 'H', 'L', 'M', 'SP', 'PSW', 'HL', 'DE', 'BC'];
+                this.mnemonics = [
+                    'MOV', 'MVI', 'LDA', 'STA', 'ADD', 'SUB', 'INR', 'DCR', 'JMP', 
+                    'JC', 'JNC', 'JZ', 'JNZ', 'CALL', 'RET', 'NOP', 'HLT', 'ANA', 
+                    'ORA', 'XRA', 'CMP', 'PUSH', 'POP', 'LXI', 'LDAX', 'STAX'
+                ];
+                this.directives = ['ORG', 'DB', 'DW', 'END'];
+                this.labels = new Set();
+                this.jumpTargets = new Set();
+            }
+
+            regToC(reg) {
+                const regMap = {
+                    'A': 'regA', 'B': 'regB', 'C': 'regC', 'D': 'regD',
+                    'E': 'regE', 'H': 'regH', 'L': 'regL',
+                    'M': 'memory[(regH << 8) | regL]',
+                    'HL': '((regH << 8) | regL)',
+                    'DE': '((regD << 8) | regE)',
+                    'BC': '((regB << 8) | regC)'
+                };
+                return regMap[reg] || reg;
+            }
+
+            formatImmediate(value) {
+                if (!value) return '0';
+                
+                // Handle hex values
+                if (value.startsWith('0x') || value.startsWith('0X')) {
+                    return value;
+                }
+                
+                // Handle hex values ending with H
+                if (value.toUpperCase().endsWith('H')) {
+                    const hexValue = value.slice(0, -1);
+                    return '0x' + hexValue;
+                }
+                
+                // Handle plain hex values
+                if (/^[0-9A-Fa-f]+$/.test(value) && value.length <= 4) {
+                    return '0x' + value;
+                }
+                
+                return value;
+            }
+
+            tokenizeLine(line) {
+                const tokens = [];
+                let i = 0;
+                
+                while (i < line.length) {
+                    if (/\s/.test(line[i])) {
+                        i++;
+                        continue;
+                    }
+                    
+                    if (line[i] === ';') break; // Comment
+                    
+                    if (/[a-zA-Z_.]/.test(line[i])) {
+                        let word = '';
+                        while (i < line.length && /[a-zA-Z0-9_.:]/.test(line[i])) {
+                            word += line[i++];
+                        }
+                        
+                        if (word.endsWith(':')) {
+                            tokens.push({ type: 'LABEL', value: word.slice(0, -1) });
+                        } else if (this.mnemonics.includes(word.toUpperCase())) {
+                            tokens.push({ type: 'MNEMONIC', value: word.toUpperCase() });
+                        } else if (this.registers8085.includes(word.toUpperCase())) {
+                            tokens.push({ type: 'REGISTER', value: word.toUpperCase() });
+                        } else if (this.directives.includes(word.toUpperCase())) {
+                            tokens.push({ type: 'DIRECTIVE', value: word.toUpperCase() });
+                        } else {
+                            tokens.push({ type: 'IDENTIFIER', value: word });
+                        }
+                    } else if (/[0-9]/.test(line[i]) || (line[i] === '0' && line[i+1] && 'xX'.includes(line[i+1]))) {
+                        let num = '';
+                        if (line[i] === '0' && line[i+1] && 'xX'.includes(line[i+1])) {
+                            num += line[i++];
+                            num += line[i++];
+                            while (i < line.length && /[0-9A-Fa-f]/.test(line[i])) {
+                                num += line[i++];
+                            }
+                        } else {
+                            while (i < line.length && /[0-9A-Fa-fH]/.test(line[i])) {
+                                num += line[i++];
+                            }
+                        }
+                        tokens.push({ type: 'NUMBER', value: num });
+                    } else if (line[i] === ',') {
+                        tokens.push({ type: 'COMMA', value: ',' });
+                        i++;
+                    } else {
+                        i++;
+                    }
+                }
+                
+                return tokens;
+            }
+
+            parseLine(tokens) {
+                const instruction = {
+                    label: null,
+                    directive: null,
+                    mnemonic: null,
+                    operands: []
+                };
+
+                let i = 0;
+                
+                // Check for label
+                if (i < tokens.length && tokens[i].type === 'LABEL') {
+                    instruction.label = tokens[i].value;
+                    this.labels.add(tokens[i].value);
+                    i++;
+                }
+
+                // Check for directive or mnemonic
+                if (i < tokens.length) {
+                    if (tokens[i].type === 'DIRECTIVE') {
+                        instruction.directive = tokens[i].value;
+                        i++;
+                    } else if (tokens[i].type === 'MNEMONIC') {
+                        instruction.mnemonic = tokens[i].value;
+                        i++;
+                        
+                        // Collect jump targets for control flow instructions
+                        if (['JMP', 'JC', 'JNC', 'JZ', 'JNZ', 'CALL'].includes(instruction.mnemonic)) {
+                            if (i < tokens.length && tokens[i].type !== 'COMMA') {
+                                this.jumpTargets.add(tokens[i].value);
+                            }
+                        }
+                    }
+                }
+
+                // Parse operands
+                while (i < tokens.length) {
+                    if (tokens[i].type === 'COMMA') {
+                        i++;
+                        continue;
+                    }
+                    if (['REGISTER', 'NUMBER', 'IDENTIFIER'].includes(tokens[i].type)) {
+                        instruction.operands.push(tokens[i].value);
+                    }
+                    i++;
+                }
+
+                return instruction;
+            }
+
+            convertInstruction(instruction) {
+                if (!instruction.mnemonic) {
+                    if (instruction.directive) {
+                        return this.convertDirective(instruction);
+                    }
+                    return '';
+                }
+
+                const mnemonic = instruction.mnemonic;
+                const operands = instruction.operands;
+
+                switch (mnemonic) {
+                    case 'MOV':
+                        if (operands.length !== 2) return '// MOV requires 2 operands';
+                        return `${this.regToC(operands[0])} = ${this.regToC(operands[1])};`;
+
+                    case 'MVI':
+                        if (operands.length !== 2) return '// MVI requires 2 operands';
+                        return `${this.regToC(operands[0])} = ${this.formatImmediate(operands[1])};`;
+
+                    case 'LDA':
+                        if (operands.length !== 1) return '// LDA requires 1 address operand';
+                        return `regA = memory[${this.formatImmediate(operands[0])}];`;
+
+                    case 'STA':
+                        if (operands.length !== 1) return '// STA requires 1 address operand';
+                        return `memory[${this.formatImmediate(operands[0])}] = regA;`;
+
+                    case 'LXI':
+                        if (operands.length !== 2) return '// LXI requires 2 operands';
+                        const regPair = operands[0];
+                        const addr = this.formatImmediate(operands[1]);
+                        if (['H', 'HL'].includes(regPair)) {
+                            return `regH = (${addr}) >> 8; regL = (${addr}) & 0xFF;`;
+                        } else if (['D', 'DE'].includes(regPair)) {
+                            return `regD = (${addr}) >> 8; regE = (${addr}) & 0xFF;`;
+                        } else if (['B', 'BC'].includes(regPair)) {
+                            return `regB = (${addr}) >> 8; regC = (${addr}) & 0xFF;`;
+                        }
+                        return `// LXI ${regPair}, ${addr}`;
+
+                    case 'LDAX':
+                        if (operands.length !== 1) return '// LDAX requires 1 operand';
+                        if (operands[0] === 'D' || operands[0] === 'DE') {
+                            return 'regA = memory[(regD << 8) | regE];';
+                        } else if (operands[0] === 'B' || operands[0] === 'BC') {
+                            return 'regA = memory[(regB << 8) | regC];';
+                        }
+                        return `// LDAX ${operands[0]}`;
+
+                    case 'STAX':
+                        if (operands.length !== 1) return '// STAX requires 1 operand';
+                        if (operands[0] === 'D' || operands[0] === 'DE') {
+                            return 'memory[(regD << 8) | regE] = regA;';
+                        } else if (operands[0] === 'B' || operands[0] === 'BC') {
+                            return 'memory[(regB << 8) | regC] = regA;';
+                        }
+                        return `// STAX ${operands[0]}`;
+
+                    case 'ADD':
+                        if (operands.length !== 1) return '// ADD requires 1 operand';
+                        return `regA = regA + ${this.regToC(operands[0])};`;
+
+                    case 'SUB':
+                        if (operands.length !== 1) return '// SUB requires 1 operand';
+                        return `regA = regA - ${this.regToC(operands[0])};`;
+
+                    case 'INR':
+                        if (operands.length !== 1) return '// INR requires 1 operand';
+                        return `${this.regToC(operands[0])}++;`;
+
+                    case 'DCR':
+                        if (operands.length !== 1) return '// DCR requires 1 operand';
+                        return `${this.regToC(operands[0])}--;`;
+
+                    case 'JMP':
+                        if (operands.length !== 1) return '// JMP requires 1 operand';
+                        return `goto label_${operands[0]};`;
+
+                    case 'JC':
+                        if (operands.length !== 1) return '// JC requires 1 operand';
+                        return `if (carry) goto label_${operands[0]};`;
+
+                    case 'JNC':
+                        if (operands.length !== 1) return '// JNC requires 1 operand';
+                        return `if (!carry) goto label_${operands[0]};`;
+
+                    case 'JZ':
+                        if (operands.length !== 1) return '// JZ requires 1 operand';
+                        return `if (zero) goto label_${operands[0]};`;
+
+                    case 'JNZ':
+                        if (operands.length !== 1) return '// JNZ requires 1 operand';
+                        return `if (!zero) goto label_${operands[0]};`;
+
+                    case 'CALL':
+                        if (operands.length !== 1) return '// CALL requires 1 operand';
+                        return `label_${operands[0]}(); // Call subroutine`;
+
+                    case 'RET':
+                        return 'return; // Return from subroutine';
+
+                    case 'ANA':
+                        if (operands.length !== 1) return '// ANA requires 1 operand';
+                        return `regA = regA & ${this.regToC(operands[0])};`;
+
+                    case 'ORA':
+                        if (operands.length !== 1) return '// ORA requires 1 operand';
+                        return `regA = regA | ${this.regToC(operands[0])};`;
+
+                    case 'XRA':
+                        if (operands.length !== 1) return '// XRA requires 1 operand';
+                        return `regA = regA ^ ${this.regToC(operands[0])};`;
+
+                    case 'CMP':
+                        if (operands.length !== 1) return '// CMP requires 1 operand';
+                        return `zero = (regA == ${this.regToC(operands[0])}) ? 1 : 0; carry = (regA < ${this.regToC(operands[0])}) ? 1 : 0; // Compare`;
+
+                    case 'PUSH':
+                        if (operands.length !== 1) return '// PUSH requires 1 operand';
+                        return `// PUSH ${operands[0]} - Stack operation (simplified)`;
+
+                    case 'POP':
+                        if (operands.length !== 1) return '// POP requires 1 operand';
+                        return `// POP ${operands[0]} - Stack operation (simplified)`;
+
+                    case 'HLT':
+                        return 'printf("Program halted\\n"); exit(0);';
+
+                    case 'NOP':
+                        return '; // No operation';
+
+                    default:
+                        return `// Unsupported instruction: ${mnemonic}`;
+                }
+            }
+
+            convertDirective(instruction) {
+                const directive = instruction.directive;
+                const operands = instruction.operands;
+
+                switch (directive) {
+                    case 'ORG':
+                        if (operands.length > 0) {
+                            return `// ORG ${operands[0]} - Set origin address`;
+                        }
+                        return '// ORG directive';
+
+                    case 'DB':
+                        if (operands.length > 0) {
+                            return `// DB ${operands.join(', ')} - Define byte(s)`;
+                        }
+                        return '// DB directive';
+
+                    case 'DW':
+                        if (operands.length > 0) {
+                            return `// DW ${operands.join(', ')} - Define word(s)`;
+                        }
+                        return '// DW directive';
+
+                    case 'END':
+                        return '// END - End of program';
+
+                    default:
+                        return `// Unknown directive: ${directive}`;
+                }
+            }
+
+            generateFullCProgram(asmCode) {
+                const lines = asmCode.split('\n');
+                const instructions = [];
+                
+                // Reset collections
+                this.labels.clear();
+                this.jumpTargets.clear();
+
+                // First pass: parse all instructions
+                for (let line of lines) {
+                    line = line.trim();
+                    if (!line || line.startsWith(';')) continue;
+
+                    const tokens = this.tokenizeLine(line);
+                    if (tokens.length > 0) {
+                        const instruction = this.parseLine(tokens);
+                        instructions.push(instruction);
+                    }
+                }
+
+                // Generate C code
+                let cCode = '// Auto-generated C code from ASM Fusion\n';
+                cCode += '#include <stdio.h>\n';
+                cCode += '#include <stdlib.h>\n';
+                cCode += '#include <stdint.h>\n\n';
+
+                cCode += '// 8085 Register declarations\n';
+                cCode += 'uint8_t regA = 0, regB = 0, regC = 0, regD = 0;\n';
+                cCode += 'uint8_t regE = 0, regH = 0, regL = 0;\n';
+                cCode += 'uint8_t memory[65536] = {0}; // 64KB memory\n';
+                cCode += 'int carry = 0, zero = 0; // Flags\n\n';
+
+                // Function declarations for jump targets
+                if (this.jumpTargets.size > 0) {
+                    cCode += '// Function declarations\n';
+                    for (const target of this.jumpTargets) {
+                        if (this.labels.has(target)) {
+                            cCode += `void label_${target}();\n`;
+                        }
+                    }
+                    cCode += '\n';
+                }
+
+                cCode += 'int main() {\n';
+                cCode += '    printf("Starting 8085 program execution...\\n");\n\n';
+
+                // Convert each instruction
+                for (const instruction of instructions) {
+                    if (instruction.label) {
+                        cCode += `label_${instruction.label}:\n`;
+                    }
+
+                    const convertedLine = this.convertInstruction(instruction);
+                    if (convertedLine) {
+                        cCode += `    ${convertedLine}\n`;
+                        
+                        // Add flag updates for arithmetic operations
+                        if (instruction.mnemonic && ['ADD', 'SUB', 'INR', 'DCR'].includes(instruction.mnemonic)) {
+                            cCode += '    zero = (regA == 0) ? 1 : 0; // Update zero flag\n';
+                        }
+                    }
+
+                    if (instruction.directive === 'END') {
+                        break;
+                    }
+                }
+
+                cCode += '\n    printf("Program execution completed.\\n");\n';
+                cCode += '    return 0;\n';
+                cCode += '}\n';
+
+                // Generate function definitions for called labels
+                for (const target of this.jumpTargets) {
+                    if (this.labels.has(target)) {
+                        cCode += `\nvoid label_${target}() {\n`;
+                        cCode += `    // Function implementation for label ${target}\n`;
+                        cCode += '    // Note: This is a placeholder - implement based on program logic\n';
+                        cCode += '}\n';
+                    }
+                }
+
+                return cCode;
+            }
+        }
+
+        // GUI Controller
+        class GUIController {
+            constructor() {
+                this.converter = new ASMToC();
+                this.assemblyInput = document.getElementById('assemblyInput');
+                this.codeOutput = document.getElementById('codeOutput');
+                this.lineNumbers = document.getElementById('lineNumbers');
+                this.statusText = document.getElementById('statusText');
+                this.statsText = document.getElementById('statsText');
+                
+                this.initializeEventListeners();
+                this.updateDisplay();
+            }
+
+            initializeEventListeners() {
+                this.assemblyInput.addEventListener('input', () => {
+                    this.updateDisplay();
+                    this.convertCode();
+                });
+
+                this.assemblyInput.addEventListener('scroll', () => {
+                    this.lineNumbers.scrollTop = this.assemblyInput.scrollTop;
+                });
+
+                this.assemblyInput.addEventListener('keydown', (e) => {
+                    if (e.key === 'Tab'){
+                        e.preventDefault();
+                    const start = this.assemblyInput.selectionStart;
+                    const end = this.assemblyInput.selectionEnd;
+
+                    this.assemblyInput.setRangeText("    ", start, end, "end");
+                    this.updateDisplay();
+                }
+            });
+        }
+
+        updateDisplay() {
+            const code = this.assemblyInput.value;
+            const lines = code.split('\n').length;
+            this.lineNumbers.innerText = Array.from({ length: lines }, (_, i) => i + 1).join('\n');
+            this.statsText.innerText = `Lines: ${lines} | Instructions: ${this.countInstructions(code)}`;
+        }
+
+        countInstructions(code) {
+            return code.split('\n').filter(line =>
+                line.trim() && !line.trim().startsWith(';') && !line.trim().startsWith('//')
+            ).length;
+        }
+
+        convertCode() {
+            const asm = this.assemblyInput.value;
+            if (!asm.trim()) {
+                this.codeOutput.value = '';
+                this.statusText.innerText = 'Waiting for input...';
+                return;
+            }
+            this.codeOutput.classList.add("loading", "pulse");
+            setTimeout(() => {
+                const cCode = this.converter.generateFullCProgram(asm);
+                this.codeOutput.value = cCode;
+                this.statusText.innerText = 'Conversion successful!';
+                this.codeOutput.classList.remove("loading", "pulse");
+            }, 100); // simulate delay
+        }
+    }
+
+    function loadExample() {
+        const example = `START:\n    MVI A, 10H\n    MVI B, 20H\n    ADD B\n    STA 3000H\n    HLT`;
+        document.getElementById('assemblyInput').value = example;
+        gui.updateDisplay();
+        gui.convertCode();
+    }
+
+    function clearAll() {
+        document.getElementById('assemblyInput').value = '';
+        document.getElementById('codeOutput').value = '';
+        document.getElementById('statusText').innerText = 'Cleared!';
+        document.getElementById('statsText').innerText = 'Lines: 0 | Instructions: 0';
+    }
+
+    function downloadCode(type) {
+        let content = '';
+        let filename = '';
+        if (type === 'asm') {
+            content = document.getElementById('assemblyInput').value;
+            filename = 'input.asm';
+        } else {
+            content = document.getElementById('codeOutput').value;
+            filename = 'output.c';
+        }
+
+        const blob = new Blob([content], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+    }
+
+    const gui = new GUIController();
+    </script>
+</body>
+</html>
